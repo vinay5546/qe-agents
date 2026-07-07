@@ -13,11 +13,3 @@ services:
       - qe-agents-net
     ports:
       - "4000:4000"
-
-  sandbox:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.sandbox
-    networks:
-      - qe-agents-net
-    profiles: ["build-only"] # built ahead of time; run per-test via `docker run`, not compose up

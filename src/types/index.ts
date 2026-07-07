@@ -27,8 +27,8 @@ export interface TestPlan {
 
 export interface GeneratedTest {
   scenarioId: string;
-  filePath: string; // where the .spec.ts was written
-  framework: "supertest" | "playwright";
+  filePath: string;
+  framework: "playwright";
 }
 
 export interface TestPlanWithCode {

@@ -1,38 +1,19 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { ExecutionReport, GeneratedTest, TestOutcome, TestResult } from "../types/index.js";
+import type { TestOutcome } from "../types/index.js";
 
 const execFileAsync = promisify(execFile);
 
 const MAX_RETRIES = 2; // a test that fails then passes on rerun => "flaky", not "fail"
-const CONTAINER_IMAGE = "qe-agents-sandbox"; // built from docker/Dockerfile.sandbox
 
-// Runs a single generated test file inside a locked-down container:
-// - no network access except to the SUT container on a private docker network
-// - read-only filesystem mount for the test file
-// - CPU/memory limits to bound any runaway AI-generated code
+// Runs a single generated test file via the local Playwright CLI.
+// No Docker sandbox — relies on Playwright's own process isolation per test file.
 async function runOnce(filePath: string): Promise<{ passed: boolean; stderr: string; durationMs: number }> {
   const start = Date.now();
   try {
-    await execFileAsync("docker", [
-      "run",
-      "--rm",
-      "--network",
-      "qe-agents-net",
-      "--memory",
-      "256m",
-      "--cpus",
-      "0.5",
-      "--read-only",
-      "--tmpfs",
-      "/tmp",
-      "-v",
-      `${filePath}:/app/test.spec.ts:ro`,
-      CONTAINER_IMAGE,
-      "npx",
-      "jest",
-      "/app/test.spec.ts",
-    ]);
+    await execFileAsync("npx", ["playwright", "test", filePath, "--reporter=line"], {
+      env: { ...process.env, SUT_BASE_URL: process.env.SUT_BASE_URL ?? "[localhost](http://localhost:4000)" },
+    });
     return { passed: true, stderr: "", durationMs: Date.now() - start };
   } catch (err: any) {
     return {
@@ -43,52 +24,36 @@ async function runOnce(filePath: string): Promise<{ passed: boolean; stderr: str
   }
 }
 
-async function runWithRetries(test: GeneratedTest): Promise<TestResult> {
-  let attempts = 0;
-  let lastStderr = "";
-  let lastDuration = 0;
-  const outcomes: boolean[] = [];
-
-  while (attempts < 1 + MAX_RETRIES) {
-    attempts += 1;
-    const { passed, stderr, durationMs } = await runOnce(test.filePath);
-    outcomes.push(passed);
-    lastStderr = stderr;
-    lastDuration = durationMs;
-    if (passed && attempts > 1) break; // recovered after a failure -> stop early, mark flaky below
-    if (!passed && attempts === 1) continue; // give it a chance to prove itself
-    if (passed) break;
-  }
-
-  const allPassed = outcomes.every(Boolean);
-  const allFailed = outcomes.every((o) => !o);
-  const outcome: TestOutcome = allPassed
-    ? "pass"
-    : allFailed
-    ? "fail"
-    : "flaky"; // mixed results across retries = flaky, not a hard fail
-
-  return {
-    scenarioId: test.scenarioId,
-    filePath: test.filePath,
-    outcome,
-    attempts,
-    stderr: outcome === "pass" ? undefined : lastStderr,
-    durationMs: lastDuration,
-  };
-}
-
-export async function executeTests(tests: GeneratedTest[]): Promise<ExecutionReport> {
+export async function executeTests(generatedTests: { scenarioId: string; filePath: string }[]) {
   const startedAt = new Date().toISOString();
+  const results = [];
 
-  // Run in parallel, bounded to avoid saturating the host during grading.
-  const CONCURRENCY = 4;
-  const results: TestResult[] = [];
-  for (let i = 0; i < tests.length; i += CONCURRENCY) {
-    const batch = tests.slice(i, i + CONCURRENCY);
-    const batchResults = await Promise.all(batch.map(runWithRetries));
-    results.push(...batchResults);
+  for (const t of generatedTests) {
+    let attempt = await runOnce(t.filePath);
+    let attempts = 1;
+    let outcomes = [attempt.passed];
+    while (!attempt.passed && attempts <= MAX_RETRIES) {
+      attempt = await runOnce(t.filePath);
+      attempts++;
+      outcomes.push(attempt.passed);
+    }
+    const outcome: TestOutcome = outcomes.every((p) => p)
+      ? "pass"
+      : outcomes.some((p) => p)
+        ? "flaky"
+        : "fail";
+    results.push({
+      scenarioId: t.scenarioId,
+      filePath: t.filePath,
+      outcome,
+      attempts,
+      stderr: attempt.stderr,
+      durationMs: attempt.durationMs,
+    });
   }
 
-  return { results, startedAt, finishedAt: new Date().toISOString() };
+  const finishedAt = new Date().toISOString();
+
+  return { startedAt, finishedAt, results };
 }
+

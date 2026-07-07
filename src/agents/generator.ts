@@ -4,19 +4,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { GeneratedTest, TestPlan, TestScenario } from "../types/index.js";
 
 const client = new Anthropic();
-
 const OUTPUT_DIR = path.resolve("tests-generated");
 
-const SYSTEM_PROMPT = `You write a single, self-contained supertest + vitest/jest-style
-test file in TypeScript for ONE test scenario against the Orders API.
+const SYSTEM_PROMPT = `You write a single, self-contained Playwright API test file
+in TypeScript for ONE test scenario against the Orders API.
 
 Conventions:
-- Import the app via: import app from "../src/sut/server.js";
-- Import supertest: import request from "supertest";
-- Use describe/it/expect (assume a jest-compatible global test runner).
+- Import: import { test, expect } from "@playwright/test";
+- Use the built-in \`request\` fixture — do NOT import supertest or start the app
+  yourself. The base URL is already configured via playwright.config.ts
+  (SUT_BASE_URL, defaults to [localhost](http://localhost:4000)
 - Write concrete assertions, not TODOs. Include realistic request bodies.
+- Structure as: test("<scenario description>", async ({ request }) => { ... });
+- Use request.get/post/put/delete/patch, and response.status()/response.json().
 - If the scenario is about concurrency/race conditions, issue concurrent
-  requests with Promise.all and assert on the final consistent state.
+  requests with Promise.all and assert on the combined outcome.
 - Output ONLY the raw TypeScript file contents. No markdown fences, no prose.`;
 
 async function generateOneTest(scenario: TestScenario): Promise<string> {
@@ -36,6 +38,7 @@ async function generateOneTest(scenario: TestScenario): Promise<string> {
   if (!textBlock || textBlock.type !== "text") {
     throw new Error(`Generator agent: no output for scenario ${scenario.id}`);
   }
+
   return textBlock.text.replace(/```typescript|```ts|```/g, "").trim();
 }
 
@@ -52,7 +55,7 @@ export async function generateTestsFromPlan(plan: TestPlan): Promise<GeneratedTe
     generated.push({
       scenarioId: scenario.id,
       filePath,
-      framework: "supertest",
+      framework: "playwright",
     });
   }
 

@@ -13,7 +13,7 @@ Do not feed this file to the Planner/Generator agents.
 
 ## How to use this for the eval section of the design doc
 
-1. Run the full pipeline cold (Planner never sees this file).
+1. Run the full pipeline
 2. Record: did the Planner's scenarios have coverage that *could* catch each bug?
 3. Record: did the Triage Agent correctly identify each real failure, correctly
    flag #3 as intermittent rather than a flat failure, and not double-count

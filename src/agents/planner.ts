@@ -34,7 +34,7 @@ export async function planFromArtifact(artifact: InputArtifact): Promise<TestPla
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4000,
+    max_tokens: 8000,
     system: SYSTEM_PROMPT,
     messages: [
       {
@@ -43,6 +43,10 @@ export async function planFromArtifact(artifact: InputArtifact): Promise<TestPla
       },
     ],
   });
+
+  if (response.stop_reason === "max_tokens") {
+  throw new Error("Planner agent: response was truncated by max_tokens — raise the limit or shorten the artifact");
+}
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {

@@ -37,7 +37,7 @@ export async function triageResults(report: ExecutionReport): Promise<TriageRepo
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4000,
+    max_tokens: 8000,
     system: SYSTEM_PROMPT,
     messages: [
       { role: "user", content: JSON.stringify(failures, null, 2) },
