@@ -9,7 +9,6 @@ npm install
 export ANTHROPIC_API_KEY=sk-ant-...
 docker network create qe-agents-net
 docker build -f docker/Dockerfile.sut -t qe-agents-sut .
-docker build -f docker/Dockerfile.sandbox -t qe-agents-sandbox .
 docker run -d --network qe-agents-net --name sut -p 4000:4000 qe-agents-sut
 ```
 
