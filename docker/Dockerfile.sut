@@ -1,0 +1,9 @@
+FROM node:20-slim
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev express
+COPY src/sut ./src/sut
+
+EXPOSE 4000
+CMD ["node", "--loader", "tsx", "src/sut/server.ts"]

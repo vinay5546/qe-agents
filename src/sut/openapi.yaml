@@ -1,0 +1,87 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  version: "1.0"
+  description: >
+    Minimal orders service. PATCH /orders/{id} performs a partial update
+    (merge semantics). Status transitions are pending -> confirmed -> shipped.
+paths:
+  /orders:
+    get:
+      summary: List orders
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Paginated list of orders
+    post:
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, quantity]
+              properties:
+                customerId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+                notes: { type: string }
+      responses:
+        "201": { description: Order created }
+        "400": { description: Validation error }
+  /orders/{id}:
+    get:
+      summary: Get an order by id
+      description: >
+        Only the owning customer (matched via x-customer-id header) may
+        access an order. Non-owners should receive an authorization error.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Order found }
+        "403": { description: Not authorized to view this order }
+        "404": { description: Not found }
+    patch:
+      summary: Partially update an order
+      description: >
+        Partial update — only fields present in the request body are
+        modified; all other fields must be preserved.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Order updated }
+        "404": { description: Not found }
+  /orders/{id}/status:
+    patch:
+      summary: Update order status
+      description: >
+        Transitions order status. Concurrent updates to the same order must
+        not silently overwrite one another.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [pending, confirmed, shipped] }
+      responses:
+        "200": { description: Status updated }
+        "404": { description: Not found }

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.env
+tests-generated/*.spec.ts
+!tests-generated/.gitkeep

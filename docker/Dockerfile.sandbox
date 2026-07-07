@@ -1,0 +1,19 @@
+# Sandbox image for running AI-generated test code.
+#
+# Safety posture:
+# - No outbound network except the private docker network to the SUT
+#   (enforced by `docker run --network qe-agents-net`, not by this image).
+# - Read-only root filesystem at runtime (`--read-only --tmpfs /tmp`),
+#   so generated code cannot persist changes to the image or host.
+# - CPU/memory limits enforced at `docker run` time, bounding any
+#   accidental or malicious resource exhaustion from generated code.
+# - No secrets or credentials are baked into or mounted into this image.
+FROM node:20-slim
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev jest supertest @types/jest ts-jest typescript
+
+# Test files are mounted read-only at container run time — never copied in,
+# so a stale image can't accidentally run old/malicious generated code.
+ENTRYPOINT ["npx", "jest"]
